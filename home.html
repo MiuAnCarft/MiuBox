@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>主页 - MiuBox</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 顶部导航栏 -->
+        <header class="header">
+            <div class="logo">
+                <h1>MiuBox</h1>
+                <span class="version">v1.0.0</span>
+            </div>
+            <nav class="navigation">
+                <button class="nav-btn active" data-page="home">主页</button>
+                <button class="nav-btn" data-page="translation">翻译</button>
+                <button class="nav-btn" data-page="settings">设置</button>
+            </nav>
+        </header>
+
+        <!-- 主内容区域 -->
+        <main class="main-content">
+            <div class="page-header">
+                <h2>文件拖拽区域</h2>
+                <p>将文件拖拽到下方区域获取文件的绝对路径</p>
+            </div>
+
+            <!-- 文件拖拽区域 -->
+            <div class="drag-drop-area" id="dragDropArea">
+                <div class="drag-drop-content">
+                    <div class="drag-icon">📁</div>
+                    <h3>拖拽文件到这里</h3>
+                    <p>支持拖拽单个或多个文件</p>
+                    <button class="browse-btn" id="browseBtn">或点击选择文件</button>
+                </div>
+            </div>
+
+            <!-- 文件列表 -->
+            <div class="file-list-container" id="fileListContainer" style="display: none;">
+                <h3>已选择的文件</h3>
+                <div class="file-list" id="fileList">
+                    <!-- 文件列表将在这里动态生成 -->
+                </div>
+                <div class="file-actions">
+                    <button class="action-btn secondary" id="clearFilesBtn">清空列表</button>
+                    <button class="action-btn primary" id="processFilesBtn">处理文件</button>
+                </div>
+            </div>
+
+            <!-- 文件信息显示 -->
+            <div class="file-info" id="fileInfo" style="display: none;">
+                <h3>文件信息</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>文件路径:</label>
+                        <span id="filePath" class="file-path"></span>
+                    </div>
+                    <div class="info-item">
+                        <label>文件大小:</label>
+                        <span id="fileSize"></span>
+                    </div>
+                    <div class="info-item">
+                        <label>文件类型:</label>
+                        <span id="fileType"></span>
+                    </div>
+                    <div class="info-item">
+                        <label>修改时间:</label>
+                        <span id="fileModified"></span>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 底部状态栏 -->
+        <footer class="footer">
+            <div class="status-bar">
+                <span id="statusMessage">就绪</span>
+                <span class="file-count" id="fileCount">0 个文件</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- 隐藏的文件输入 -->
+    <input type="file" id="fileInput" multiple style="display: none;">
+
+    <script src="script.js"></script>
+    <script>
+        /**
+         * 主页专用脚本
+         * 处理文件拖拽、文件选择、文件信息显示等功能
+         */
+        
+        console.log('加载主页脚本');
+        
+        class HomePage {
+            constructor() {
+                this.files = [];
+                this.currentFileIndex = 0;
+                this.init();
+            }
+            
+            init() {
+                console.log('初始化主页');
+                
+                // 绑定事件监听器
+                this.bindEvents();
+                
+                // 初始化拖拽区域
+                this.initDragDrop();
+                
+                console.log('主页初始化完成');
+            }
+            
+            bindEvents() {
+                // 导航按钮点击事件
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        this.navigateToPage(e.target.dataset.page);
+                    });
+                });
+                
+                // 浏览文件按钮
+                document.getElementById('browseBtn').addEventListener('click', () => {
+                    this.openFileBrowser();
+                });
+                
+                // 文件输入变化事件
+                document.getElementById('fileInput').addEventListener('change', (e) => {
+                    this.handleFileSelection(e.target.files);
+                });
+                
+                // 清空文件列表
+                document.getElementById('clearFilesBtn').addEventListener('click', () => {
+                    this.clearFileList();
+                });
+                
+                // 处理文件按钮
+                document.getElementById('processFilesBtn').addEventListener('click', () => {
+                    this.processFiles();
+                });
+            }
+            
+            initDragDrop() {
+                const dragDropArea = document.getElementById('dragDropArea');
+                
+                // 拖拽进入事件
+                dragDropArea.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    dragDropArea.classList.add('drag-over');
+                });
+                
+                // 拖拽离开事件
+                dragDropArea.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    if (!dragDropArea.contains(e.relatedTarget)) {
+                        dragDropArea.classList.remove('drag-over');
+                    }
+                });
+                
+                // 拖拽放下事件
+                dragDropArea.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    dragDropArea.classList.remove('drag-over');
+                    
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        console.log('拖放的文件列表:', files);
+                        
+                        // 只处理第一个文件，获取绝对路径
+                        if (files.length > 1) {
+                            console.log('检测到多个文件，只处理第一个文件');
+                            this.updateStatus('只支持单个文件拖放，已忽略其他文件');
+                        }
+                        
+                        const file = files[0]; // 只取第一个文件
+                        
+                        // 检测运行环境
+                        const isNW = typeof nw !== 'undefined';
+                        const isElectron = typeof electron !== 'undefined' || window.electronAPI;
+                        
+                        console.log('检测到运行环境:', { isNW, isElectron });
+                        
+                        // 获取文件路径
+                        let filePath = file.path || file.name;
+                        
+                        console.log('拖放的文件信息:', {
+                            name: file.name,
+                            originalPath: filePath,
+                            size: file.size,
+                            type: file.type,
+                            lastModified: file.lastModified
+                        });
+                        
+                        // 在NW.js环境中，文件对象直接包含完整路径
+        if (typeof nw !== 'undefined' && file.path) {
+            console.log('NW.js环境检测到完整路径:', file.path);
+            filePath = file.path;
+            this.updateStatus(`文件路径: ${filePath}`);
+        }
+        // 在Electron环境中通过IPC获取绝对路径
+        else if (isElectron && window.electronAPI) {
+            try {
+                console.log('通过IPC请求绝对路径...');
+                const result = await window.electronAPI.getFilePath({
+                    name: file.name,
+                    path: filePath,
+                    size: file.size,
+                    type: file.type
+                });
+                
+                if (result && result.success) {
+                    filePath = result.path;
+                    console.log('获取到的绝对路径:', filePath);
+                    this.updateStatus(`文件路径: ${filePath}`);
+                } else {
+                    console.log('IPC请求失败，使用原路径');
+                    this.updateStatus('无法获取绝对路径，使用相对路径');
+                }
+            } catch (error) {
+                console.error('IPC请求错误:', error);
+                this.updateStatus('获取路径时发生错误');
+            }
+        }
+                        
+                        // 创建包含绝对路径的文件对象
+                        const fileWithPath = {
+                            name: file.name,
+                            path: filePath,
+                            size: file.size,
+                            type: file.type,
+                            lastModified: file.lastModified
+                        };
+                        
+                        console.log('处理后的文件:', fileWithPath);
+                        
+                        // 只处理单个文件
+                        this.handleFileSelection([fileWithPath]);
+                    }
+                });
+            }
+            
+            openFileBrowser() {
+                console.log('打开文件浏览器');
+                document.getElementById('fileInput').click();
+            }
+            
+            handleFileSelection(fileList) {
+                console.log('处理文件选择:', fileList);
+                
+                if (!fileList || fileList.length === 0) {
+                    this.updateStatus('未选择任何文件');
+                    return;
+                }
+                
+                // 将FileList转换为数组并处理文件路径
+                const newFiles = Array.from(fileList).map(file => {
+                    // 在Electron环境中，拖放的文件需要特殊处理来获取路径
+                    if (file.path) {
+                        // 如果文件已经有path属性，直接使用
+                        return file;
+                    } else {
+                        // 对于没有path属性的文件，尝试通过其他方式获取路径
+                        // 这里我们创建一个新的文件对象，包含路径信息
+                        const fileWithPath = new File([file], file.name, { 
+                            type: file.type,
+                            lastModified: file.lastModified 
+                        });
+                        // 添加path属性 - 优先使用file.path，如果没有则使用文件名
+                        fileWithPath.path = file.path || file.name;
+                        return fileWithPath;
+                    }
+                });
+                
+                this.files = this.files.concat(newFiles);
+                
+                // 更新UI
+                this.updateFileList();
+                this.showFileList();
+                this.updateStatus(`已添加 ${newFiles.length} 个文件`);
+                
+                // 显示第一个文件的信息
+                if (this.files.length > 0) {
+                    this.showFileInfo(0);
+                }
+                
+                // 清空文件输入，以便下次选择
+                document.getElementById('fileInput').value = '';
+            }
+            
+            updateFileList() {
+                const fileListElement = document.getElementById('fileList');
+                fileListElement.innerHTML = '';
+                
+                this.files.forEach((file, index) => {
+                    const fileItem = this.createFileItem(file, index);
+                    fileListElement.appendChild(fileItem);
+                });
+                
+                // 更新文件计数
+                document.getElementById('fileCount').textContent = `${this.files.length} 个文件`;
+            }
+            
+            createFileItem(file, index) {
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                div.innerHTML = `
+                    <div class="file-icon">📄</div>
+                    <div class="file-details">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-size">${this.formatFileSize(file.size)}</div>
+                    </div>
+                    <div class="file-actions">
+                        <button class="file-action-btn" onclick="homePage.showFileInfo(${index})">查看</button>
+                        <button class="file-action-btn remove" onclick="homePage.removeFile(${index})">移除</button>
+                    </div>
+                `;
+                
+                return div;
+            }
+            
+            showFileInfo(index) {
+                if (index < 0 || index >= this.files.length) return;
+                
+                const file = this.files[index];
+                this.currentFileIndex = index;
+                
+                // 更新文件信息显示
+                document.getElementById('filePath').textContent = file.path || '未知路径';
+                document.getElementById('fileSize').textContent = this.formatFileSize(file.size);
+                document.getElementById('fileType').textContent = file.type || this.getFileType(file.name);
+                document.getElementById('fileModified').textContent = this.formatDate(file.lastModified);
+                
+                // 显示文件信息区域
+                document.getElementById('fileInfo').style.display = 'block';
+                
+                this.updateStatus(`显示文件: ${file.name}`);
+            }
+            
+            removeFile(index) {
+                if (index < 0 || index >= this.files.length) return;
+                
+                const fileName = this.files[index].name;
+                this.files.splice(index, 1);
+                
+                this.updateFileList();
+                this.updateStatus(`已移除文件: ${fileName}`);
+                
+                // 如果移除了当前显示的文件，清空文件信息
+                if (index === this.currentFileIndex) {
+                    this.hideFileInfo();
+                }
+                
+                // 如果没有文件了，隐藏文件列表
+                if (this.files.length === 0) {
+                    this.hideFileList();
+                }
+            }
+            
+            clearFileList() {
+                this.files = [];
+                this.updateFileList();
+                this.hideFileList();
+                this.hideFileInfo();
+                this.updateStatus('已清空文件列表');
+            }
+            
+            processFiles() {
+                if (this.files.length === 0) {
+                    this.updateStatus('没有文件需要处理');
+                    return;
+                }
+                
+                this.updateStatus(`正在处理 ${this.files.length} 个文件...`);
+                
+                // 发送文件处理请求到主进程（Electron IPC）
+                if (window.electronAPI) {
+                    const fileData = this.files.map((file, index) => ({
+                        index: index,
+                        name: file.name,
+                        path: file.path,
+                        size: file.size,
+                        type: file.type
+                    }));
+                    window.electronAPI.processFiles(fileData);
+                } else {
+                    // 备用方案：使用传统方式
+                    this.files.forEach((file, index) => {
+                        window.postMessage({
+                            type: 'fileSelected',
+                            data: {
+                                index: index,
+                                name: file.name,
+                                path: file.path,
+                                size: file.size,
+                                type: file.type
+                            }
+                        }, '*');
+                    });
+                }
+                
+                this.updateStatus(`已发送 ${this.files.length} 个文件进行处理`);
+            }
+            
+            showFileList() {
+                document.getElementById('fileListContainer').style.display = 'block';
+            }
+            
+            hideFileList() {
+                document.getElementById('fileListContainer').style.display = 'none';
+            }
+            
+            hideFileInfo() {
+                document.getElementById('fileInfo').style.display = 'none';
+            }
+            
+            navigateToPage(pageName) {
+                console.log(`导航到页面: ${pageName}`);
+                
+                // 更新导航按钮状态
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                document.querySelector(`[data-page="${pageName}"]`).classList.add('active');
+                
+                // 发送导航消息到主进程（Electron IPC）
+                if (window.electronAPI) {
+                    window.electronAPI.navigateToPage(pageName);
+                } else {
+                    // 备用方案：直接加载页面
+                    window.location.href = `${pageName}.html`;
+                }
+            }
+            
+            updateStatus(message) {
+                document.getElementById('statusMessage').textContent = message;
+                console.log(`状态更新: ${message}`);
+            }
+            
+            formatFileSize(bytes) {
+                if (bytes === 0) return '0 B';
+                
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+            
+            formatDate(timestamp) {
+                return new Date(timestamp).toLocaleString('zh-CN');
+            }
+            
+            getFileType(filename) {
+                const ext = filename.split('.').pop().toLowerCase();
+                const types = {
+                    'txt': '文本文件',
+                    'json': 'JSON文件',
+                    'js': 'JavaScript文件',
+                    'css': '样式表文件',
+                    'html': 'HTML文件',
+                    'md': 'Markdown文件',
+                    'log': '日志文件'
+                };
+                
+                return types[ext] || '未知文件类型';
+            }
+            
+            getFilePath(file) {
+                // 在Electron环境中，优先使用file.path获取完整路径
+                if (file.path) {
+                    // 检查路径是否是绝对路径
+                    if (file.path.startsWith('/') || file.path.includes(':')) {
+                        return file.path;
+                    } else {
+                        // 如果是相对路径，尝试转换为绝对路径
+                        return this.resolveAbsolutePath(file.path);
+                    }
+                }
+                
+                // 如果文件是通过拖放获取的，尝试从dataTransfer获取路径
+                if (file.webkitRelativePath) {
+                    return file.webkitRelativePath;
+                }
+                
+                // 如果文件是通过文件选择器获取的，尝试使用File API
+                if (window.electronAPI) {
+                    // 在Electron中，可以通过IPC请求文件路径
+                    return this.requestFilePathFromElectron(file);
+                }
+                
+                // 如果以上方法都失败，返回默认路径
+                return '未知路径';
+            }
+            
+            resolveAbsolutePath(relativePath) {
+                // 简单的路径解析逻辑
+                if (relativePath.startsWith('/')) {
+                    // 如果是Unix风格的绝对路径
+                    return relativePath;
+                } else if (relativePath.startsWith('./') || relativePath.startsWith('../')) {
+                    // 如果是相对路径，尝试解析
+                    return this.normalizePath(relativePath);
+                } else {
+                    // 其他情况，直接返回
+                    return relativePath;
+                }
+            }
+            
+            normalizePath(path) {
+                // 简单的路径规范化
+                const parts = path.split('/');
+                const result = [];
+                
+                for (const part of parts) {
+                    if (part === '..') {
+                        result.pop();
+                    } else if (part !== '.' && part !== '') {
+                        result.push(part);
+                    }
+                }
+                
+                return '/' + result.join('/');
+            }
+            
+            async requestFilePathFromElectron(file) {
+                try {
+                    const fileInfo = {
+                        name: file.name,
+                        size: file.size,
+                        type: file.type
+                    };
+                    
+                    const result = await window.electronAPI.getFilePath(fileInfo);
+                    if (result.success) {
+                        return result.path;
+                    } else {
+                        return '路径获取失败: ' + result.error;
+                    }
+                } catch (error) {
+                    console.error('请求文件路径失败:', error);
+                    return '路径请求失败';
+                }
+            }
+        }
+        
+        // 创建主页实例
+        const homePage = new HomePage();
+        
+        // 监听来自主进程的消息
+        if (window.electronAPI) {
+            // Electron IPC 监听
+            window.electronAPI.onFileProcessed((data) => {
+                homePage.updateStatus(`文件处理完成: ${data.message}`);
+            });
+            
+            window.electronAPI.onStatusUpdate((message) => {
+                homePage.updateStatus(message);
+            });
+        } else {
+            // 传统消息监听
+            window.addEventListener('message', (event) => {
+                const { type, data } = event.data;
+                
+                switch (type) {
+                    case 'fileProcessed':
+                        homePage.updateStatus(`文件处理完成: ${data.message}`);
+                        break;
+                        
+                    default:
+                        console.log('收到未知消息:', type, data);
+                }
+            });
+        }
+        
+        console.log('主页脚本加载完成');
+    </script>
+</body>
+</html>

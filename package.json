@@ -1,0 +1,47 @@
+{
+  "name": "miubox",
+  "version": "1.0.0",
+  "description": "多功能桌面应用框架",
+  "main": "home.html",
+  "scripts": {
+    "start": "nw .",
+    "debuger": "nw . --enable-logging --enable-logging=stderr",
+    "build": "nw-builder -p win32,win64,mac,linux -v 0.105.0 .",
+    "pack": "nw-builder -p win32,win64,mac,linux -v 0.105.0 . --out dist",
+    "dist": "nw-builder -p win32,win64,mac,linux -v 0.105.0 . --out dist"
+  },
+  "keywords": [
+    "desktop",
+    "app",
+    "framework",
+    "nwjs"
+  ],
+  "author": "MiuBox Team",
+  "license": "MIT",
+  "build": {
+    "appId": "com.miubox.app",
+    "productName": "MiuBox",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!node_modules/nw/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "nw": "^0.105.0-1"
+  }
+}

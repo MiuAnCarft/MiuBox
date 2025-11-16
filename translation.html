@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>翻译 - MiuBox</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 顶部导航栏 -->
+        <header class="header">
+            <div class="logo">
+                <h1>MiuBox</h1>
+                <span class="version">v1.0.0</span>
+            </div>
+            <nav class="navigation">
+                <button class="nav-btn" data-page="home">主页</button>
+                <button class="nav-btn active" data-page="translation">翻译</button>
+                <button class="nav-btn" data-page="settings">设置</button>
+            </nav>
+        </header>
+
+        <!-- 主内容区域 -->
+        <main class="main-content">
+            <div class="page-header">
+                <h2>JSON数组翻译工具</h2>
+                <p>支持将JSON数组中的文本进行批量翻译，格式：原文::翻译结果</p>
+            </div>
+
+            <!-- 翻译控制面板 -->
+            <div class="translation-controls">
+                <div class="control-group">
+                    <label for="sourceLang">源语言:</label>
+                    <select id="sourceLang" class="lang-select">
+                        <option value="auto">自动检测</option>
+                        <option value="zh">中文</option>
+                        <option value="en">英语</option>
+                        <option value="ja">日语</option>
+                        <option value="ko">韩语</option>
+                        <option value="fr">法语</option>
+                        <option value="de">德语</option>
+                        <option value="es">西班牙语</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label for="targetLang">目标语言:</label>
+                    <select id="targetLang" class="lang-select">
+                        <option value="zh">中文</option>
+                        <option value="en">英语</option>
+                        <option value="ja">日语</option>
+                        <option value="ko">韩语</option>
+                        <option value="fr">法语</option>
+                        <option value="de">德语</option>
+                        <option value="es">西班牙语</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label for="translationService">翻译服务:</label>
+                    <select id="translationService" class="service-select">
+                        <option value="local">本地翻译</option>
+                        <option value="google">Google翻译</option>
+                        <option value="baidu">百度翻译</option>
+                    </select>
+                </div>
+                
+                <button class="action-btn primary" id="translateBtn">开始翻译</button>
+            </div>
+
+            <!-- 输入输出区域 -->
+            <div class="translation-io">
+                <div class="input-section">
+                    <h3>输入区域</h3>
+                    <div class="input-actions">
+                        <button class="action-btn secondary" id="clearInputBtn">清空输入</button>
+                        <button class="action-btn secondary" id="loadExampleBtn">加载示例</button>
+                        <button class="action-btn secondary" id="validateJsonBtn">验证JSON</button>
+                    </div>
+                    <textarea 
+                        id="inputText" 
+                        class="translation-textarea" 
+                        placeholder="请输入JSON数组格式的文本，例如：[{\"text\": \"Hello\"}, {\"text\": \"World\"}] 或直接输入文本数组 [\"文本1\", \"文本2\"]"
+                        rows="10"
+                    ></textarea>
+                    <div class="input-stats">
+                        <span id="inputLineCount">0 行</span>
+                        <span id="inputCharCount">0 字符</span>
+                    </div>
+                </div>
+                
+                <div class="output-section">
+                    <h3>输出区域</h3>
+                    <div class="output-actions">
+                        <button class="action-btn secondary" id="clearOutputBtn">清空输出</button>
+                        <button class="action-btn secondary" id="copyOutputBtn">复制结果</button>
+                        <button class="action-btn secondary" id="exportOutputBtn">导出文件</button>
+                    </div>
+                    <textarea 
+                        id="outputText" 
+                        class="translation-textarea" 
+                        placeholder="翻译结果将显示在这里"
+                        rows="10"
+                        readonly
+                    ></textarea>
+                    <div class="output-stats">
+                        <span id="outputLineCount">0 行</span>
+                        <span id="translatedCount">0 项已翻译</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 翻译历史 -->
+            <div class="translation-history" id="translationHistory" style="display: none;">
+                <h3>翻译历史</h3>
+                <div class="history-list" id="historyList">
+                    <!-- 历史记录将在这里动态生成 -->
+                </div>
+            </div>
+        </main>
+
+        <!-- 底部状态栏 -->
+        <footer class="footer">
+            <div class="status-bar">
+                <span id="statusMessage">就绪</span>
+                <span class="translation-status" id="translationStatus">等待翻译</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        /**
+         * 翻译页专用脚本
+         * 处理JSON数组翻译、文本处理、翻译结果展示等功能
+         */
+        
+        console.log('加载翻译页脚本');
+        
+        class TranslationPage {
+            constructor() {
+                this.translationHistory = [];
+                this.isTranslating = false;
+                this.init();
+            }
+            
+            init() {
+                console.log('初始化翻译页');
+                
+                // 绑定事件监听器
+                this.bindEvents();
+                
+                // 加载历史记录
+                this.loadHistory();
+                
+                console.log('翻译页初始化完成');
+            }
+            
+            bindEvents() {
+                // 导航按钮点击事件
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        this.navigateToPage(e.target.dataset.page);
+                    });
+                });
+                
+                // 翻译按钮
+                document.getElementById('translateBtn').addEventListener('click', () => {
+                    this.startTranslation();
+                });
+                
+                // 输入区域按钮
+                document.getElementById('clearInputBtn').addEventListener('click', () => {
+                    this.clearInput();
+                });
+                
+                document.getElementById('loadExampleBtn').addEventListener('click', () => {
+                    this.loadExample();
+                });
+                
+                document.getElementById('validateJsonBtn').addEventListener('click', () => {
+                    this.validateJson();
+                });
+                
+                // 输出区域按钮
+                document.getElementById('clearOutputBtn').addEventListener('click', () => {
+                    this.clearOutput();
+                });
+                
+                document.getElementById('copyOutputBtn').addEventListener('click', () => {
+                    this.copyOutput();
+                });
+                
+                document.getElementById('exportOutputBtn').addEventListener('click', () => {
+                    this.exportOutput();
+                });
+                
+                // 输入文本变化事件
+                document.getElementById('inputText').addEventListener('input', (e) => {
+                    this.updateInputStats(e.target.value);
+                });
+                
+                // 输出文本变化事件
+                document.getElementById('outputText').addEventListener('input', (e) => {
+                    this.updateOutputStats(e.target.value);
+                });
+            }
+            
+            startTranslation() {
+                if (this.isTranslating) {
+                    this.updateStatus('翻译正在进行中，请稍候...');
+                    return;
+                }
+                
+                const inputText = document.getElementById('inputText').value.trim();
+                if (!inputText) {
+                    this.updateStatus('请输入要翻译的文本');
+                    return;
+                }
+                
+                this.isTranslating = true;
+                this.updateStatus('开始翻译...');
+                
+                // 获取翻译设置
+                const sourceLang = document.getElementById('sourceLang').value;
+                const targetLang = document.getElementById('targetLang').value;
+                const service = document.getElementById('translationService').value;
+                
+                try {
+                    // 解析输入文本
+                    const inputData = this.parseInput(inputText);
+                    
+                    if (!inputData || inputData.length === 0) {
+                        throw new Error('无法解析输入数据');
+                    }
+                    
+                    this.updateStatus(`正在翻译 ${inputData.length} 个文本项...`);
+                    
+                    // 检查是否在Electron环境中
+                    if (window.electronAPI) {
+                        // 使用Electron IPC通信
+                        window.electronAPI.translateText({
+                            texts: inputData,
+                            sourceLang: sourceLang,
+                            targetLang: targetLang,
+                            service: service
+                        });
+                    } else {
+                        // 备用方案：发送翻译请求到主进程
+                        window.postMessage({
+                            type: 'translationRequest',
+                            data: {
+                                texts: inputData,
+                                sourceLang: sourceLang,
+                                targetLang: targetLang,
+                                service: service
+                            }
+                        }, '*');
+                    }
+                    
+                    // 模拟翻译过程（实际应该等待主进程返回结果）
+                    this.simulateTranslation(inputData, sourceLang, targetLang);
+                    
+                } catch (error) {
+                    this.updateStatus(`翻译出错: ${error.message}`);
+                    this.isTranslating = false;
+                }
+            }
+            
+            parseInput(inputText) {
+                console.log('解析输入文本:', inputText);
+                
+                try {
+                    // 尝试解析为JSON
+                    const parsed = JSON.parse(inputText);
+                    
+                    if (Array.isArray(parsed)) {
+                        // 如果是数组，提取文本内容
+                        return parsed.map(item => {
+                            if (typeof item === 'string') {
+                                return item;
+                            } else if (typeof item === 'object' && item !== null) {
+                                // 尝试从对象中提取文本字段
+                                return item.text || item.content || item.value || JSON.stringify(item);
+                            }
+                            return String(item);
+                        }).filter(text => text && text.trim());
+                    } else if (typeof parsed === 'object') {
+                        // 如果是对象，转换为数组
+                        return Object.values(parsed).map(String).filter(text => text && text.trim());
+                    }
+                } catch (jsonError) {
+                    console.log('JSON解析失败，尝试按行分割:', jsonError);
+                    
+                    // 如果不是有效的JSON，按行分割
+                    return inputText.split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line && !line.startsWith('//') && !line.startsWith('#'));
+                }
+                
+                return [inputText]; // 如果所有方法都失败，返回原始文本
+            }
+            
+            simulateTranslation(texts, sourceLang, targetLang) {
+                // 模拟翻译过程
+                setTimeout(() => {
+                    const translatedTexts = texts.map((text, index) => {
+                        // 简单的模拟翻译逻辑
+                        const translation = `翻译${index + 1}: ${text}`;
+                        return `${text}::${translation}`;
+                    });
+                    
+                    // 显示翻译结果
+                    this.displayTranslationResult(translatedTexts.join('\n'));
+                    
+                    // 保存到历史记录
+                    this.saveToHistory({
+                        texts: texts,
+                        translated: translatedTexts,
+                        sourceLang: sourceLang,
+                        targetLang: targetLang,
+                        timestamp: new Date().toISOString()
+                    });
+                    
+                    this.isTranslating = false;
+                    this.updateStatus(`翻译完成，共翻译 ${texts.length} 个文本项`);
+                    
+                }, 1000); // 模拟1秒延迟
+            }
+            
+            displayTranslationResult(result) {
+                document.getElementById('outputText').value = result;
+                this.updateOutputStats(result);
+            }
+            
+            clearInput() {
+                document.getElementById('inputText').value = '';
+                this.updateInputStats('');
+                this.updateStatus('已清空输入区域');
+            }
+            
+            clearOutput() {
+                document.getElementById('outputText').value = '';
+                this.updateOutputStats('');
+                this.updateStatus('已清空输出区域');
+            }
+            
+            loadExample() {
+                const example = `[
+    "Hello world",
+    "This is a test",
+    "How are you today?",
+    "Thank you very much",
+    "Good morning"
+]`;
+                
+                document.getElementById('inputText').value = example;
+                this.updateInputStats(example);
+                this.updateStatus('已加载示例数据');
+            }
+            
+            validateJson() {
+                const inputText = document.getElementById('inputText').value.trim();
+                
+                if (!inputText) {
+                    this.updateStatus('请输入要验证的JSON');
+                    return;
+                }
+                
+                try {
+                    JSON.parse(inputText);
+                    this.updateStatus('✅ JSON格式正确');
+                } catch (error) {
+                    this.updateStatus('❌ JSON格式错误: ' + error.message);
+                }
+            }
+            
+            copyOutput() {
+                const outputText = document.getElementById('outputText');
+                outputText.select();
+                
+                try {
+                    document.execCommand('copy');
+                    this.updateStatus('已复制翻译结果到剪贴板');
+                } catch (error) {
+                    this.updateStatus('复制失败: ' + error.message);
+                }
+            }
+            
+            exportOutput() {
+                const outputText = document.getElementById('outputText').value;
+                
+                if (!outputText) {
+                    this.updateStatus('没有内容可导出');
+                    return;
+                }
+                
+                // 创建Blob对象并下载
+                const blob = new Blob([outputText], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                
+                a.href = url;
+                a.download = `translation_${new Date().getTime()}.txt`;
+                a.click();
+                
+                URL.revokeObjectURL(url);
+                this.updateStatus('已导出翻译结果');
+            }
+            
+            updateInputStats(text) {
+                const lines = text.split('\n').filter(line => line.trim()).length;
+                const chars = text.length;
+                
+                document.getElementById('inputLineCount').textContent = `${lines} 行`;
+                document.getElementById('inputCharCount').textContent = `${chars} 字符`;
+            }
+            
+            updateOutputStats(text) {
+                const lines = text.split('\n').filter(line => line.trim()).length;
+                const translated = text.split('::').length - 1;
+                
+                document.getElementById('outputLineCount').textContent = `${lines} 行`;
+                document.getElementById('translatedCount').textContent = `${translated} 项已翻译`;
+            }
+            
+            saveToHistory(translationRecord) {
+                this.translationHistory.unshift(translationRecord);
+                
+                // 限制历史记录数量
+                if (this.translationHistory.length > 10) {
+                    this.translationHistory = this.translationHistory.slice(0, 10);
+                }
+                
+                this.saveHistory();
+                this.displayHistory();
+            }
+            
+            displayHistory() {
+                const historyList = document.getElementById('historyList');
+                historyList.innerHTML = '';
+                
+                this.translationHistory.forEach((record, index) => {
+                    const historyItem = this.createHistoryItem(record, index);
+                    historyList.appendChild(historyItem);
+                });
+                
+                // 显示历史记录区域
+                document.getElementById('translationHistory').style.display = 'block';
+            }
+            
+            createHistoryItem(record, index) {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                
+                const date = new Date(record.timestamp).toLocaleString('zh-CN');
+                const sampleText = record.texts[0] || '';
+                
+                div.innerHTML = `
+                    <div class="history-header">
+                        <span class="history-index">#${index + 1}</span>
+                        <span class="history-date">${date}</span>
+                        <span class="history-langs">${record.sourceLang} → ${record.targetLang}</span>
+                    </div>
+                    <div class="history-preview">${sampleText.substring(0, 50)}${sampleText.length > 50 ? '...' : ''}</div>
+                    <div class="history-actions">
+                        <button class="history-action-btn" onclick="translationPage.loadFromHistory(${index})">加载</button>
+                        <button class="history-action-btn" onclick="translationPage.deleteFromHistory(${index})">删除</button>
+                    </div>
+                `;
+                
+                return div;
+            }
+            
+            loadFromHistory(index) {
+                if (index < 0 || index >= this.translationHistory.length) return;
+                
+                const record = this.translationHistory[index];
+                const inputText = JSON.stringify(record.texts, null, 2);
+                
+                document.getElementById('inputText').value = inputText;
+                document.getElementById('sourceLang').value = record.sourceLang;
+                document.getElementById('targetLang').value = record.targetLang;
+                
+                this.updateInputStats(inputText);
+                this.updateStatus(`已加载历史记录 #${index + 1}`);
+            }
+            
+            deleteFromHistory(index) {
+                if (index < 0 || index >= this.translationHistory.length) return;
+                
+                this.translationHistory.splice(index, 1);
+                this.saveHistory();
+                this.displayHistory();
+                this.updateStatus('已删除历史记录');
+            }
+            
+            loadHistory() {
+                try {
+                    const saved = localStorage.getItem('translationHistory');
+                    if (saved) {
+                        this.translationHistory = JSON.parse(saved);
+                        this.displayHistory();
+                    }
+                } catch (error) {
+                    console.error('加载历史记录失败:', error);
+                }
+            }
+            
+            saveHistory() {
+                try {
+                    localStorage.setItem('translationHistory', JSON.stringify(this.translationHistory));
+                } catch (error) {
+                    console.error('保存历史记录失败:', error);
+                }
+            }
+            
+            navigateToPage(pageName) {
+                console.log(`导航到页面: ${pageName}`);
+                
+                // 更新导航按钮状态
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                document.querySelector(`[data-page="${pageName}"]`).classList.add('active');
+                
+                // 检查是否在Electron环境中
+                if (window.electronAPI) {
+                    // 使用Electron IPC通信
+                    window.electronAPI.navigateToPage(pageName);
+                } else {
+                    // 备用方案：发送导航消息到主进程
+                    window.postMessage({
+                        type: 'navigate',
+                        data: { page: pageName }
+                    }, '*');
+                }
+            }
+            
+            updateStatus(message) {
+                document.getElementById('statusMessage').textContent = message;
+                document.getElementById('translationStatus').textContent = this.isTranslating ? '翻译中...' : '就绪';
+                console.log(`状态更新: ${message}`);
+            }
+        }
+        
+        // 创建翻译页实例
+        const translationPage = new TranslationPage();
+        
+        // 监听来自主进程的消息
+        window.addEventListener('message', (event) => {
+            const { type, data } = event.data;
+            
+            switch (type) {
+                case 'translationResult':
+                    translationPage.displayTranslationResult(data.translated);
+                    translationPage.updateStatus(`翻译完成: ${data.original} → ${data.translated}`);
+                    break;
+                    
+                default:
+                    console.log('收到未知消息:', type, data);
+            }
+        });
+        
+        // 监听Electron IPC消息
+        if (window.electronAPI) {
+            window.electronAPI.onTranslationResult((result) => {
+                translationPage.displayTranslationResult(result.translated);
+                translationPage.updateStatus(`翻译完成: ${result.original} → ${result.translated}`);
+                translationPage.isTranslating = false;
+            });
+            
+            window.electronAPI.onStatusUpdate((status) => {
+                translationPage.updateStatus(status.message);
+            });
+        }
+        
+        console.log('翻译页脚本加载完成');
+    </script>
+</body>
+</html>
